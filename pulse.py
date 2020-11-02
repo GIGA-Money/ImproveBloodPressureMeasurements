@@ -6,10 +6,12 @@ from pathlib import Path
 
 import PyQt5.Qt as qt
 
-from heartwave.widgets import View, CurveWidget
+from widgets import View, CurveWidget
 from heartwave.videostream import VideoStream
-from heartwave.facetracker import FaceTracker
-from heartwave.sceneanalyzer import SceneAnalyzer
+# from heartwave.facetracker import FaceTracker
+from facetracker import FaceTracker
+# from heartwave.sceneanalyzer import SceneAnalyzer
+from sceneanalyzer import SceneAnalyzer
 import heartwave.conf as conf
 import heartwave.util as util
 
@@ -24,6 +26,9 @@ class Window(qt.QMainWindow):
         self.setCentralWidget(self.view)
         self.curves = CurveWidget()
         self.curves.show()
+        self.pheight = 0.0
+        self.pweight = 0.0
+        self.age = 0
 
         def addAction(menu, name, shortcut, cb):
             action = qt.QAction(name, self)
@@ -86,11 +91,17 @@ class Window(qt.QMainWindow):
     def stop(self):
         self.video.stop()
 
+    def setBoilerPlate(self, weight, height, age):
+        self.pheight = height
+        self.pweight = weight
+        self.age = age
+
     async def pipeline(self):
         self.video = VideoStream(conf.CAM_ID)
         scene = self.video | FaceTracker | SceneAnalyzer
         lastScene = scene.aiter(skip_to_last=True)
         async for frame, persons in lastScene:
+            persons.setBoilerPlate(self.pweight, self.pweight, self.age)
             self.view.draw(frame.image, persons)
             if self.curves.isVisible():
                 self.curves.plot(persons)
@@ -101,5 +112,11 @@ def pulse():
         conf.CAM_ID = sys.argv[1]
     qApp = qt.QApplication(sys.argv)  # noqa
     win = Window()
+    weight, ok = qt.QInputDialog.getDouble(None, "Insert Weight", """weight in pounds""")
+    height, ok = qt.QInputDialog.getDouble(None, "Insert Height", """height """)
+    age, ok = qt.QInputDialog.getInt(None, "insert your age", """age testing:""")
+    if not ok:
+        sys.exit(qApp.exec_())
+    win.setBoilerPlate(weight=weight, height=height, age=age)
     win.show()
     util.run()
